@@ -1,0 +1,15 @@
+**
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.server.json
+!src/
+!src/server/
+!src/server/**
+!src/shared/
+!src/shared/**
+!fixtures/
+!fixtures/gtfs.zip
+!fixtures/map/
+!fixtures/map/**
+!Dockerfile

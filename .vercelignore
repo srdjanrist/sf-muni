@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+data/
+fixtures/
+docs/images/
+node_modules/
+dist/
+test-results/
+playwright-report/
+deploy/
+.git/
+*.log

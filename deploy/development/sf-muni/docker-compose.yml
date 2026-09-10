@@ -1,0 +1,52 @@
+services:
+  sf-muni-api:
+    image: ${MUNI_IMAGE:-ghcr.io/srdjanrist/sf-muni-api:latest}
+    container_name: sf-muni-api
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      DATA_DIR: /app/data
+      SERVE_FRONTEND: 'false'
+      TRANSIT_DATA_SOURCE: live
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set the exact Vercel frontend origin in .env}
+    volumes:
+      - sf_muni_data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - development-network
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=development-network
+      - traefik.http.routers.sf-muni-api.rule=Host(`${API_DOMAIN:-sf-muni-api.tempserver.click}`)
+      - traefik.http.routers.sf-muni-api.entrypoints=websecure
+      - traefik.http.routers.sf-muni-api.tls.certresolver=myresolver
+      - traefik.http.routers.sf-muni-api.service=sf-muni-api
+      - traefik.http.services.sf-muni-api.loadbalancer.server.port=3001
+      # Traefik flushes text/event-stream immediately. Do not attach buffering middleware.
+      - traefik.http.services.sf-muni-api.loadbalancer.responseforwarding.flushinterval=-1ms
+
+networks:
+  development-network:
+    name: development-network
+    external: true
+
+volumes:
+  sf_muni_data:
+    name: sf_muni_data
