@@ -19,4 +19,7 @@ USER node
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3001/api/system/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# The base image's /bin/sh entrypoint drops env names starting with digits.
+# Start Node directly so the requested 511_API_KEY name reaches process.env.
+ENTRYPOINT []
 CMD ["node", "dist/server/server/index.js"]
