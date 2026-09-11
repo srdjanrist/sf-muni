@@ -19,9 +19,36 @@ configuration read from the existing devops repository.
 `scripts/verify-split.ts` passed against a compiled frontend on port 5180 and a
 fixture-mode Docker backend on port 3101: API calls, SSE, PMTiles range reads,
 glyphs, vehicle selection, stop arrivals, and browser console. This test does not
-use a Vite proxy or consume the 511 token allowance. Vercel deployment, GHCR image
-publication, and public DNS/Traefik verification remain deployment steps; no VPS
-containers or shared Traefik settings were changed by this local verification.
+use a Vite proxy or consume the 511 token allowance. This local verification
+preceded the public deployment recorded below.
+
+## Public deployment — September 11, 2026
+
+- Frontend: [sf-muni.vercel.app](https://sf-muni.vercel.app), connected to the GitHub repository's `main` branch.
+- Backend: [sf-muni-api.tempserver.click](https://sf-muni-api.tempserver.click/api/health), running as `sf-muni-api` in `/root/projects-devops/development/sf-muni` on the existing development VPS.
+- Backend image: `ghcr.io/srdjanrist/sf-muni-api:sha-b981c27`. GitHub Actions successfully built and published the Linux AMD64 image.
+- HTTPS and exact-origin CORS for the Vercel frontend passed. The existing Traefik service and shared configuration were preserved. The local live poller was stopped, leaving the VPS as the single ingestion owner.
+- All three feeds reported healthy with `source: live`; the static snapshot contained 68 routes, 3,240 stops, 34,668 trips, and 287 shapes.
+- The public Chromium test observed 406 vehicles, 341 trip updates, and seven alerts. It verified vehicle 2099 on route N, its realtime stop board, map rendering, and vehicle selection. Across successive polls, 406 vehicle IDs remained stable and 213 positions changed. These are observations from the test, not fixed expected counts.
+- The test reported zero page errors and confirmed the configured token was absent from inspected hosted client JavaScript and browser request URLs. The credential remains in the VPS's private environment file.
+
+Deployment exposed a container startup issue: the base image's shell entrypoint
+discarded the numeric-prefixed `511_API_KEY` environment variable. The Dockerfile
+now starts Node directly. A GitHub Actions regression check uses a dummy value to
+verify that the published image preserves this variable; live ingestion was
+verified after deploying the corrected image.
+
+Reproduce the public smoke test with an installed Chromium browser:
+
+```sh
+LIVE_TEST_URL=https://sf-muni.vercel.app \
+LIVE_API_URL=https://sf-muni-api.tempserver.click npm run test:live
+```
+
+The test reads the existing backend and waits for its normal polling cycle; it
+does not start another 511 poller. Vercel deploys frontend pushes automatically.
+Backend images are published by CI and deployed by updating the pinned
+`MUNI_IMAGE` on the VPS, followed by Compose pull/up.
 
 ## Renderer measurement
 

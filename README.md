@@ -2,7 +2,9 @@
 
 A spatial command center for San Francisco's Muni network: real geographic routes, an interactive 3D city, smoothly moving vehicles, stop departure boards, route focus, and network health.
 
-**Current verification:** official 511 GTFS and all three realtime feeds have been verified with a server-only token, alongside deterministic fixture tests. The Vercel frontend / Docker backend split is also tested locally. New installations without a token use explicitly labeled fixture playback. See the [verification record](docs/verification.md).
+**Live application:** [sf-muni.vercel.app](https://sf-muni.vercel.app) · [Backend health](https://sf-muni-api.tempserver.click/api/health)
+
+Official 511 GTFS and all three realtime feeds are running on the development VPS behind Traefik, with the frontend on Vercel. Public browser checks verified vehicle updates, selection, realtime arrivals, and server-only credentials. New local installations without a token use explicitly labeled fixture playback. See the [verification record](docs/verification.md).
 
 ![Muni Live overview — synthetic playback on official geography](docs/images/overview.png)
 
@@ -48,6 +50,13 @@ for REST, SSE, map tiles, and fonts. Only the VPS receives the 511 token.
 `Dockerfile` builds the backend, `.github/workflows/backend-image.yml` publishes
 it to GHCR, and `vercel.json` builds only `dist/client`. Run one backend with its
 persistent data volume; no cron jobs or database are required.
+
+The deployed frontend is `https://sf-muni.vercel.app` and its API origin is
+`https://sf-muni-api.tempserver.click`. Pushes to `main` automatically deploy the
+frontend. Backend changes publish an image to GHCR; update `MUNI_IMAGE` in the
+VPS service's `.env`, then run `docker compose pull` and `docker compose up -d`
+from `/root/projects-devops/development/sf-muni` to deploy that image. The currently
+verified backend image is `ghcr.io/srdjanrist/sf-muni-api:sha-b981c27`.
 
 ## Architecture
 
@@ -133,7 +142,14 @@ npm run start
 
 `npm run test:production` checks a separately running compiled server at port 3002 (override with `PRODUCTION_TEST_URL`). This specifically catches worker/asset packaging errors that a Vite preview can hide. Run browser tests in fixture mode; the default suite intentionally requires clearly labeled synthetic playback.
 
-Production serves the compiled application at **http://127.0.0.1:3001**. Run from the repository root so the server can locate `fixtures/` and `data/`. For a public deployment, place this single Node process behind an HTTPS reverse proxy with SSE buffering disabled and a persistent `data/` volume. This deliverable does not publish or provision hosting.
+The combined local production server serves the compiled application at **http://127.0.0.1:3001**. Run from the repository root so the server can locate `fixtures/` and `data/`. The public deployment instead serves the frontend from Vercel and runs the API behind Traefik with a persistent `data/` volume.
+
+Verify the public deployment without starting another ingestion process:
+
+```sh
+LIVE_TEST_URL=https://sf-muni.vercel.app \
+LIVE_API_URL=https://sf-muni-api.tempserver.click npm run test:live
+```
 
 Maintenance:
 
