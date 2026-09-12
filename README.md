@@ -56,7 +56,7 @@ The deployed frontend is `https://sf-muni.vercel.app` and its API origin is
 frontend. Backend changes publish an image to GHCR; update `MUNI_IMAGE` in the
 VPS service's `.env`, then run `docker compose pull` and `docker compose up -d`
 from `/root/projects-devops/development/sf-muni` to deploy that image. The currently
-verified backend image is `ghcr.io/srdjanrist/sf-muni-api:sha-b981c27`.
+verified backend image is `ghcr.io/srdjanrist/sf-muni-api:sha-5938e97`.
 
 ## Architecture
 

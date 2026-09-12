@@ -84,3 +84,9 @@ central scheduler and rejects cross-site control requests from unapproved origin
 restart cooldown persistence, early stopping, quota pressure, and polling cadence.
 TypeScript, lint, and production build passed. Browser coverage exercises the
 Showcase control using intercepted responses so tests do not spend live quota.
+
+The Showcase update was deployed to Vercel and the development VPS as backend
+image `ghcr.io/srdjanrist/sf-muni-api:sha-5938e97`. All five Playwright tests passed.
+The public backend reported healthy live feeds and correctly refused a burst
+when only three hourly requests remained after restart; no production burst was
+consumed during verification.
