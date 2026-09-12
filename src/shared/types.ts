@@ -221,7 +221,17 @@ export interface FeedHealth {
   error?: string;
   failures: number;
 }
+export interface ShowcaseStatus {
+  active: boolean;
+  available: boolean;
+  endsAt?: number;
+  availableAt?: number;
+  reason?: string;
+  durationMs: number;
+  intervalMs: number;
+}
 export interface SystemStatus {
+  showcase?: ShowcaseStatus;
   status: 'loading' | 'ok' | 'degraded';
   source: DataSource;
   now: number;

@@ -53,10 +53,14 @@ const status = (): SystemStatus => ({
   },
   feeds,
   budget: client.budget,
+  showcase: polling?.showcase.status,
   staleAfterMs: config.staleMs,
 });
 const state = new TransitStateManager(status, config.staleMs, config.removeMs, now);
-const app = await createApp(state);
+const app = await createApp(state, config.corsOrigins, {
+  start: () => polling?.startShowcase(),
+  stop: () => polling?.stopShowcase(),
+});
 await app.listen({ port: config.port, host: config.host });
 const maintenance = setInterval(() => {
   state.enrich();
@@ -145,6 +149,7 @@ async function boot() {
         config.refreshMs - (Date.now() - cached.snapshot.updatedAt),
       );
     polling = new Polling(client, state, feeds, app.log);
+    await polling.showcase.init();
     polling.start();
   }
 }

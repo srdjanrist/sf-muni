@@ -1,3 +1,4 @@
+import { ShowcaseControl } from './ShowcaseControl';
 import { useEffect, useRef, useState } from 'react';
 import {
   Search,
@@ -115,6 +116,7 @@ export function TopBar() {
         )}
       </div>
       <div className="top-actions">
+        <ShowcaseControl />
         <button
           className={`text-button ${filterCount ? 'active' : ''}`}
           onClick={() =>

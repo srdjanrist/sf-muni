@@ -6,18 +6,25 @@ import { resolve } from 'node:path';
 import { access } from 'node:fs/promises';
 import { z } from 'zod';
 import type { ServerResponse } from 'node:http';
-import type { SearchResult, TransitDelta } from '../../shared/types.js';
+import type { SearchResult, ShowcaseStatus, TransitDelta } from '../../shared/types.js';
 import { config } from '../config/index.js';
 import type { TransitStateManager } from '../transit/state-manager.js';
 
-export async function createApp(state: TransitStateManager, corsOrigins = config.corsOrigins) {
+export async function createApp(
+  state: TransitStateManager,
+  corsOrigins = config.corsOrigins,
+  showcase?: {
+    start: () => Promise<ShowcaseStatus> | undefined;
+    stop: () => ShowcaseStatus | undefined;
+  },
+) {
   const app = Fastify({
     logger: { level: config.logLevel, redact: ['req.headers.authorization', 'req.headers.cookie'] },
     logController: new LogController({ disableRequestLogging: true }),
   });
   await app.register(cors, {
     origin: corsOrigins.length ? corsOrigins : false,
-    methods: ['GET', 'HEAD', 'OPTIONS'],
+    methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'DELETE'],
     allowedHeaders: ['Range', 'If-None-Match', 'If-Match', 'Last-Event-ID', 'Content-Type'],
     exposedHeaders: ['ETag', 'Content-Range', 'Accept-Ranges', 'Content-Length'],
     maxAge: 86400,
@@ -42,6 +49,19 @@ export async function createApp(state: TransitStateManager, corsOrigins = config
     return reply.code(s.status === 'loading' ? 503 : 200).send(s);
   });
   app.get('/api/system/status', async () => state.status());
+  app.route({
+    method: ['POST', 'DELETE'],
+    url: '/api/system/showcase',
+    handler: async (req, reply) => {
+      const origin = req.headers.origin;
+      // Reject cross-site mutations, including simple form requests; CORS alone does not do this.
+      if (origin && !corsOrigins.includes(origin) && origin !== `${req.protocol}://${req.host}`)
+        return reply.code(403).send({ error: 'origin_not_allowed' });
+      const result = req.method === 'POST' ? await showcase?.start() : showcase?.stop();
+      if (!result) return reply.code(503).send({ error: 'Showcase requires live ingestion.' });
+      return reply.header('Cache-Control', 'no-store').send(result);
+    },
+  });
   app.get('/api/realtime/snapshot', async () => state.getSnapshot());
   app.get('/api/vehicles', async () => [...state.vehicles.values()]);
   app.get('/api/vehicles/:id', async (req, reply) => {

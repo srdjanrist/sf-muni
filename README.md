@@ -90,6 +90,20 @@ See [architecture and operational details](docs/architecture.md).
 - Preferences control buildings, routes, stops, labels, statistics, and reduced graphics. Lower-powered/mobile devices start with reduced detail.
 - Selections and visualization modes are shareable, such as `/?route=N`, `/?vehicle=SIM-1000`, or `/?mode=delay`. Use the actual feed's string IDs.
 
+## Record a showcase video
+
+Open **Showcase** in the top toolbar and choose **Start 60-second burst**. The
+shared backend polls vehicle positions about every 20 seconds for one minute,
+then returns to its normal cadence. Select a vehicle and press **Follow** to
+frame the recording. **Stop burst** ends it early.
+
+The button requires healthy live feeds and at least four remaining requests in
+the configured hourly budget. Bursts have a shared one-hour cooldown persisted
+on the VPS, cannot be extended by repeated clicks, and end early under budget
+pressure or upstream failure. Arrival and alert polling stay unchanged. Motion
+between observations remains estimated; faster polling cannot force 511 to
+supply a new GPS observation. Fixture playback does not consume live burst quota.
+
 ## Polling and rate limits
 
 The standard 511 token allowance is **60 requests per rolling 3,600 seconds**, shared across endpoints. The defaults reserve some room for static downloads and retries:

@@ -72,3 +72,15 @@ Live ingestion uncovered two upstream compatibility details: passing `format=pro
 Overnight 511 descriptors can use the civil date for GTFS 24+ hour trips. Predictions preserve raw descriptors and reconcile the service date only when absolute stop times and reported delays corroborate the prior active service day (allowing two minutes for intermediate-time differences). Vehicle-only schedule fallback uses the observation timestamp to disambiguate 24+ hour times. An offline check of an actual live response compared 5,036 predicted stops after reconciliation with no day-sized erroneous delays.
 
 The live smoke test does not constitute extended operational monitoring. Controlled upstream outage recovery remains covered by automated fixture/transport tests rather than deliberately disconnecting this live session. Terrain, underground rendering, and historical replay remain documented future work.
+
+## Showcase control — September 12, 2026
+
+Added a shared, one-minute vehicle polling burst at approximately 20-second
+intervals, with persistent one-hour cooldown, quota admission checks, automatic
+expiry, and failure/backoff preservation. The public API uses the existing
+central scheduler and rejects cross-site control requests from unapproved origins.
+
+45 unit/integration checks passed, including burst expiry, concurrent starts,
+restart cooldown persistence, early stopping, quota pressure, and polling cadence.
+TypeScript, lint, and production build passed. Browser coverage exercises the
+Showcase control using intercepted responses so tests do not spend live quota.

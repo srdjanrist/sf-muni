@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+import { Showcase, showcasePolicy } from './showcase.js';
 import type { FastifyBaseLogger } from 'fastify';
 import type { FeedHealth, FeedName } from '../../shared/types.js';
 import { config } from '../config/index.js';
@@ -14,6 +16,9 @@ import type { transit_realtime as RT } from 'gtfs-realtime-bindings';
 export class Polling {
   timers = new Map<FeedName, ReturnType<typeof setTimeout>>();
   stopped = false;
+  readonly showcase: Showcase;
+  private inFlight = new Set<FeedName>();
+  private showcaseTimer?: ReturnType<typeof setTimeout>;
   private entities: Record<FeedName, Map<string, RT.IFeedEntity>> = {
     vehiclePositions: new Map(),
     tripUpdates: new Map(),
@@ -24,7 +29,31 @@ export class Polling {
     private state: TransitStateManager,
     private health: Record<FeedName, FeedHealth>,
     private log: FastifyBaseLogger,
-  ) {}
+  ) {
+    this.showcase = new Showcase(
+      join(config.dataDir, 'showcase.json'),
+      () => client.budget,
+      () => !this.stopped && Object.values(health).every((f) => f.healthy),
+    );
+  }
+  async startShowcase() {
+    if (await this.showcase.start()) {
+      if (!this.inFlight.has('vehiclePositions')) this.schedule('vehiclePositions', 0, true);
+      this.showcaseTimer = setTimeout(() => this.stopShowcase(), showcasePolicy.durationMs);
+      this.log.info('Showcase vehicle polling started');
+      this.state.emit();
+    }
+    return this.showcase.status;
+  }
+  stopShowcase() {
+    if (!this.showcase.stop()) return this.showcase.status;
+    clearTimeout(this.showcaseTimer);
+    // Preserve an existing failure backoff. Otherwise restore the usual cadence.
+    if (!this.inFlight.has('vehiclePositions') && this.health.vehiclePositions.healthy)
+      this.schedule('vehiclePositions', config.pollMs.vehiclePositions);
+    this.state.emit();
+    return this.showcase.status;
+  }
   start() {
     (['vehiclePositions', 'tripUpdates', 'serviceAlerts'] as FeedName[]).forEach((f, i) =>
       this.schedule(f, i * 1500),
@@ -32,18 +61,29 @@ export class Polling {
   }
   stop() {
     this.stopped = true;
+    this.showcase.stop();
+    clearTimeout(this.showcaseTimer);
     this.timers.forEach(clearTimeout);
     this.timers.clear();
   }
-  private schedule(feed: FeedName, delay: number) {
+  private schedule(feed: FeedName, delay: number, expedited = false) {
     if (this.stopped) return;
+    clearTimeout(this.timers.get(feed));
     this.health[feed].nextAttempt = Date.now() + delay;
     this.timers.set(
       feed,
-      setTimeout(() => void this.poll(feed), delay),
+      setTimeout(() => {
+        if (expedited && !this.showcase.status.active) {
+          this.schedule(feed, config.pollMs[feed]);
+          return;
+        }
+        void this.poll(feed);
+      }, delay),
     );
   }
   async poll(feed: FeedName) {
+    if (this.stopped || this.inFlight.has(feed)) return;
+    this.inFlight.add(feed);
     const health = this.health[feed];
     health.lastAttempt = Date.now();
     let wait = config.pollMs[feed];
@@ -80,8 +120,11 @@ export class Polling {
       }
       if (feed === 'tripUpdates') this.state.updateTrips(normalizeTrips(merged, now));
       if (feed === 'serviceAlerts') this.state.updateAlerts(normalizeAlerts(merged, now));
+      if (feed === 'vehiclePositions' && this.showcase.status.active)
+        wait = showcasePolicy.intervalMs;
       this.log.info({ feed, count: health.count, bytes: bytes.length }, 'realtime poll completed');
     } catch (error) {
+      this.showcase.stop();
       health.healthy = false;
       health.failures++;
       health.error = error instanceof UpstreamError ? error.code : 'poll_failed';
@@ -96,6 +139,13 @@ export class Polling {
       );
       this.state.emit();
     }
-    this.schedule(feed, wait);
+    this.inFlight.delete(feed);
+    this.schedule(
+      feed,
+      wait,
+      feed === 'vehiclePositions' &&
+        wait === showcasePolicy.intervalMs &&
+        this.showcase.status.active,
+    );
   }
 }

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/server/api/app.js';
 import { TransitStateManager } from '../src/server/transit/state-manager.js';
 import { ensureMapAssets } from '../src/server/gtfs/map-assets.js';
@@ -65,4 +65,36 @@ describe('Vercel frontend and VPS backend boundary', () => {
     expect(response.headers['x-accel-buffering']).toBe('no');
     expect(response.body).toContain('event: initial_snapshot');
   });
+});
+
+it('allows showcase preflight and rejects cross-site mutations before invoking polling', async () => {
+  const start = vi
+    .fn()
+    .mockResolvedValue({ active: true, available: false, durationMs: 60000, intervalMs: 20000 });
+  const controlApp = await createApp(state, [allowed], { start, stop: () => undefined });
+  try {
+    const preflight = await controlApp.inject({
+      method: 'OPTIONS',
+      url: '/api/system/showcase',
+      headers: { origin: allowed, 'access-control-request-method': 'POST' },
+    });
+    expect(preflight.headers['access-control-allow-methods']).toContain('POST');
+    const denied = await controlApp.inject({
+      method: 'POST',
+      url: '/api/system/showcase',
+      headers: { origin: 'https://unrelated.example' },
+    });
+    expect(denied.statusCode).toBe(403);
+    expect(start).not.toHaveBeenCalled();
+    const accepted = await controlApp.inject({
+      method: 'POST',
+      url: '/api/system/showcase',
+      headers: { origin: allowed },
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json().active).toBe(true);
+    expect(start).toHaveBeenCalledTimes(1);
+  } finally {
+    await controlApp.close();
+  }
 });
